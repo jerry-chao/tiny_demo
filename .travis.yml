@@ -1,0 +1,10 @@
+sudo: required
+
+language: erlang
+otp_release:
+  - 23.3
+script:
+  - ./rebar3 fmt --check
+  - ./rebar3 compile
+  - ./rebar3 ct
+  - ./rebar3 cover
