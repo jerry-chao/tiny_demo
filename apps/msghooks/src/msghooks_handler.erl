@@ -46,7 +46,7 @@ content_types_provided(Req, State) ->
     }.
 
 db_to_json(Req, State) ->
-    Body = io_lib:format("{\"not_found\": \"record not found\"}", []),
+    Body = io_lib:format("{\"test\": \"test\"}", []),
     {list_to_binary(Body), Req, State}.
 
 %%%===================================================================
