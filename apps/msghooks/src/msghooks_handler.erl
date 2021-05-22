@@ -46,7 +46,7 @@ content_types_provided(Req, State) ->
     }.
 
 db_to_json(Req, State) ->
-    Body = io_lib:format("{\"test\": \"test\"}", []),
+    Body = io_lib:format("{\"test\": \"test 0.2.0\"}", []),
     {list_to_binary(Body), Req, State}.
 
 %%%===================================================================
