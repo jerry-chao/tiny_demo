@@ -33,7 +33,7 @@ is_authorized(Req, State) ->
     end.
 
 allowed_methods(Req, State) ->
-    Methods = [<<"GET">>, <<"POST">>, <<"DELETE">>],
+    Methods = [<<"GET">>, <<"POST">>, <<"DELETE">>, <<"PUT">>],
     {Methods, Req, State}.
 
 content_types_provided(Req, State) ->

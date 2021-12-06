@@ -1,9 +1,13 @@
 sudo: required
 
+before_script:
+  - kerl list installations
+
 language: erlang
 otp_release:
-  - 23.3
+  - 23.3.1
 script:
+  - echo ${TRAVIS_OTP_RELEASE}
   - ./rebar3 fmt --check
   - ./rebar3 compile
   - ./rebar3 ct
