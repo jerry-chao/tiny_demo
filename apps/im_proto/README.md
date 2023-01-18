@@ -1,7 +1,7 @@
-msghooks
+im_proto
 =====
 
-An OTP application
+An OTP library
 
 Build
 -----

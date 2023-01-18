@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+enum CommandType {
+    CONNECT = 0;
+    DISCONNECT = 1;
+    REQUEST = 2;
+    RESPONSE = 3;
+}
+
+message Command {
+    int32 version = 1;
+    CommandType command = 2;
+    bytes payload = 3;
+}
+
+message Connect {
+    string org = 1;
+    string appkey = 2;
+    string user = 3;
+    string token = 4;
+}
+
+message Disconnect {
+    int32 code = 1;
+    string reason = 2;
+}
+
+enum RequestType {
+    MESSAGE = 0;
+    CONTACT = 1;
+    GROUP = 2;
+}
+
+message Option {
+    bool offline = 1;
+}
+
+message Request {
+    RequestType type = 1;
+    bytes payload = 2;
+    repeated Option opts = 3;
+}
+
+enum MessageType {
+    TXT = 0;
+    IMAGE = 1;
+}
+
+message MessageTxt {
+    string txt = 1;
+}
+
+message MessageImg {
+    string url = 1;
+}
+
+message Message {
+    MessageType type = 1;
+    bytes payload = 2;
+}
+
+message Response {
+    int32 code = 1;
+    string reason = 2;
+}
