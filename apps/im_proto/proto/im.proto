@@ -1,18 +1,5 @@
 syntax = "proto3";
 
-enum CommandType {
-    CONNECT = 0;
-    DISCONNECT = 1;
-    REQUEST = 2;
-    RESPONSE = 3;
-}
-
-message Command {
-    int32 version = 1;
-    CommandType command = 2;
-    bytes payload = 3;
-}
-
 message Connect {
     string org = 1;
     string appkey = 2;
@@ -23,6 +10,16 @@ message Connect {
 message Disconnect {
     int32 code = 1;
     string reason = 2;
+}
+
+enum Status {
+    STATUS_OK = 0;
+    STATUS_FAIL = 1;
+}
+
+message ConAck {
+    Status status = 1;
+    optional string reason = 2;
 }
 
 enum RequestType {
@@ -62,4 +59,12 @@ message Message {
 message Response {
     int32 code = 1;
     string reason = 2;
+}
+
+message Command {
+    int32 version = 1;
+    optional Connect connect = 3;
+    optional Disconnect disconnect = 4;
+    optional Request request = 5;
+    optional Response response = 6;
 }

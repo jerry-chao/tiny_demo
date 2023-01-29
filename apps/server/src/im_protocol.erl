@@ -22,6 +22,7 @@
          terminate/2, code_change/3, format_status/2]).
 
 -define(SERVER, ?MODULE).
+-include_lib("kernel/include/logger.hrl").
 
 -record(state, {transport, socket}).
 
@@ -65,7 +66,7 @@ init([Ref, Transport, _Opts]) ->
 
 handle_continue(Ref, #state{transport = Transport} = State) ->
     {ok, Socket} = ranch:handshake(Ref),
-    ok = Transport:setopts(Socket, [{active, once}, {packet, line}]),
+    ok = Transport:setopts(Socket, [{active, once}, {packet, 0}]),
     {noreply, State#state{socket = Socket}}.
 
 %%--------------------------------------------------------------------
@@ -113,8 +114,9 @@ handle_cast(_Request, State) ->
           {noreply, NewState :: term(), hibernate} |
           {stop, Reason :: normal | term(), NewState :: term()}.
 handle_info({tcp, Socket, Data}, #state{socket = Socket, transport = Transport} = State) ->
+    Command = im_proto:decode_command(Data),
+    ?LOG_INFO("server recv command ~p", [Command]),
     Transport:setopts(Socket, [{active, once}]),
-    Transport:send(Socket, Data),
     {noreply, State};
 handle_info({tcp_closed, _Socket}, _State) ->
     {stop, normal};

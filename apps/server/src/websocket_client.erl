@@ -11,15 +11,16 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/3]).
+-export([start_link/6]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3, format_status/2]).
 
 -define(SERVER, ?MODULE).
+-include_lib("kernel/include/logger.hrl").
 
--record(state, {org, app, user, conn_pid}).
+-record(state, {org, app, user, conn_pid, transport, socket}).
 
 %%%===================================================================
 %%% API
@@ -31,12 +32,12 @@
 %% Starts the server
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(binary(), binary(), binary()) -> {ok, Pid :: pid()} |
+-spec start_link(binary(), binary(), binary(), atom(), binary(), integer()) -> {ok, Pid :: pid()} |
           {error, Error :: {already_started, pid()}} |
           {error, Error :: term()} |
           ignore.
-start_link(Org, App, User) ->
-    gen_server:start_link(?MODULE, [Org, App, User], []).
+start_link(Org, App, User, Transport, Host, Port) ->
+    gen_server:start_link(?MODULE, [Org, App, User, Transport, Host, Port], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -53,13 +54,22 @@ start_link(Org, App, User) ->
           {ok, State :: term(), hibernate} |
           {stop, Reason :: term()} |
           ignore.
-init([Org, App, User]) ->
+init([Org, App, User, Transport, Host, Port]) ->
     process_flag(trap_exit, true),
-    {ok, ConnPid} = gun:open("127.0.0.1", 6223),
+    {ok, Sock} = Transport:connect(Host, Port, [binary, {packet, 0}]),
+    {ok, #state{socket = Sock,
+                transport = Transport,
+                org = Org,
+                app = App,
+                user = User}};
+init([Org, App, User, ws, Host, Port]) ->
+    process_flag(trap_exit, true),
+    {ok, ConnPid} = gun:open(Host, Port),
     {ok, _Protocol} = gun:await_up(ConnPid),
     _MRef = monitor(process, ConnPid),
     gun:ws_upgrade(ConnPid, "/websocket"),
     {ok, #state{conn_pid = ConnPid,
+                transport = tcp,
                 org = Org,
                 app = App,
                 user = User}}.
@@ -79,6 +89,10 @@ init([Org, App, User]) ->
           {noreply, NewState :: term(), hibernate} |
           {stop, Reason :: term(), Reply :: term(), NewState :: term()} |
           {stop, Reason :: term(), NewState :: term()}.
+handle_call({send, Message}, _From, #state{transport = Transport, socket = Socket} = State) ->
+    Binary = im_proto:command(Message),
+    Transport:send(Socket, Binary),
+    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -108,6 +122,14 @@ handle_cast(_Request, State) ->
           {noreply, NewState :: term(), Timeout :: timeout()} |
           {noreply, NewState :: term(), hibernate} |
           {stop, Reason :: normal | term(), NewState :: term()}.
+handle_info({tcp, Socket, Data}, #state{socket = Socket, transport = _Transport} = State) ->
+    ?LOG_INFO("recv message ~p", [Data]),
+    inet:setopts(Socket, [{active, once}]),
+    {noreply, State};
+handle_info({tcp_closed, _Socket}, _State) ->
+    {stop, normal};
+handle_info({tcp_error, _, Reason}, _State) ->
+    {stop, Reason};
 handle_info(_Info, State) ->
     {noreply, State}.
 

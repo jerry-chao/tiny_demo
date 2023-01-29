@@ -7,15 +7,6 @@
 
 -define(im_pb_gpb_version, "4.18.0").
 
--ifndef('COMMAND_PB_H').
--define('COMMAND_PB_H', true).
--record('Command',
-        {version = 0            :: integer() | undefined, % = 1, optional, 32 bits
-         command = 'CONNECT'    :: 'CONNECT' | 'DISCONNECT' | 'REQUEST' | 'RESPONSE' | integer() | undefined, % = 2, optional, enum CommandType
-         payload = <<>>         :: iodata() | undefined % = 3, optional
-        }).
--endif.
-
 -ifndef('CONNECT_PB_H').
 -define('CONNECT_PB_H', true).
 -record('Connect',
@@ -31,6 +22,14 @@
 -record('Disconnect',
         {code = 0               :: integer() | undefined, % = 1, optional, 32 bits
          reason = <<>>          :: unicode:chardata() | undefined % = 2, optional
+        }).
+-endif.
+
+-ifndef('CONACK_PB_H').
+-define('CONACK_PB_H', true).
+-record('ConAck',
+        {status = 'STATUS_OK'   :: 'STATUS_OK' | 'STATUS_FAIL' | integer() | undefined, % = 1, optional, enum Status
+         reason                 :: unicode:chardata() | undefined % = 2, optional
         }).
 -endif.
 
@@ -77,6 +76,17 @@
 -record('Response',
         {code = 0               :: integer() | undefined, % = 1, optional, 32 bits
          reason = <<>>          :: unicode:chardata() | undefined % = 2, optional
+        }).
+-endif.
+
+-ifndef('COMMAND_PB_H').
+-define('COMMAND_PB_H', true).
+-record('Command',
+        {version = 0            :: integer() | undefined, % = 1, optional, 32 bits
+         connect                :: im_pb:'Connect'() | undefined, % = 3, optional
+         disconnect             :: im_pb:'Disconnect'() | undefined, % = 4, optional
+         request                :: im_pb:'Request'() | undefined, % = 5, optional
+         response               :: im_pb:'Response'() | undefined % = 6, optional
         }).
 -endif.
 
