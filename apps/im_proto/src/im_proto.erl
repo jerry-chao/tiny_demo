@@ -18,9 +18,9 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% @spec
 %% @end
 %%--------------------------------------------------------------------
+-spec connect(Org::binary(), App::binary(), User::binary(), Token::binary()) -> #'Connect'{}.
 connect(Org, App, User, Token) ->
     #'Connect'{
        org = Org,
