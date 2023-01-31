@@ -130,6 +130,21 @@ benchmark_rand(Config) when is_list(Config) ->
     ?assert(IterationsIn5Sec >= 16, {too_slow, IterationsIn5Sec}),
     ?assert(IterationsIn5Sec =< 20, {too_fast, IterationsIn5Sec}).
 
+benchmark_ets_insert() ->
+    catch ets:delete(room_user),
+    ets:new(room_user, [named_table, duplicate_bag, public, {write_concurrency, true}, {read_concurrency, true}]),
+    {ok, Job} = erlperf_job:start_link(#{runner => fun() ->
+                                                           catch ets:insert(room_user, {<<"test">>, rand:uniform()})
+                                                   end}),
+    Handle = erlperf_job:handle(Job),
+    ok = erlperf_job:set_concurrency(Job, 4), %% 4 runner instances
+    InitialIterations = erlperf_job:sample(Handle),
+    timer:sleep(5000),
+    IterationsIn5Sec = erlperf_job:sample(Handle) - InitialIterations,
+    erlperf_job:request_stop(Job), %% use gen:stop(Job) for synchronous call
+    %% expect at least 16 iterations (and up to 20)
+    IterationsIn5Sec.
+
 %%--------------------------------------------------------------------
 %% @spec TestCase(Config0) ->
 %%               ok | exit() | {skip,Reason} | {comment,Comment} |
