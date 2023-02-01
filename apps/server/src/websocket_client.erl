@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/6]).
+-export([start_link/6, send/2, connect/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -74,6 +74,13 @@ init([Org, App, User, ws, Host, Port]) ->
                 app = App,
                 user = User}}.
 
+send(Client, Command) ->
+    gen_server:call(Client, Command).
+
+connect(Client) ->
+    gen_server:call(Client, {connect, <<"test">>}).
+
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -90,9 +97,13 @@ init([Org, App, User, ws, Host, Port]) ->
           {stop, Reason :: term(), Reply :: term(), NewState :: term()} |
           {stop, Reason :: term(), NewState :: term()}.
 handle_call({send, Message}, _From, #state{transport = Transport, socket = Socket} = State) ->
-    Binary = im_proto:command(Message),
-    Transport:send(Socket, Binary),
+    ?LOG_INFO("send message ~p", [Message]),
+    Transport:send(Socket, Message),
     {reply, ok, State};
+handle_call({connect, Token}, _From, #state{org = Org, app = App, user = User} = State) ->
+    Connect = im_proto:connect(Org, App, User, Token),
+    ConnectCommand = im_proto:command(Connect),
+    handle_call({send, ConnectCommand}, _From, State);
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.

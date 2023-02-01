@@ -96,7 +96,10 @@ end_per_testcase(_TestCase, _Config) ->
 %% @end
 %%--------------------------------------------------------------------
 groups() ->
-    [].
+    [{varint, [sequence], [
+                           encode_varint,
+                           decode_varint
+                        ]}].
 
 %%--------------------------------------------------------------------
 %% @spec all() -> GroupsAndTestCases | {skip,Reason}
@@ -107,7 +110,7 @@ groups() ->
 %% @end
 %%--------------------------------------------------------------------
 all() ->
-    [my_test_case].
+    [{group, varint}].
 
 %%--------------------------------------------------------------------
 %% @spec TestCase() -> Info
@@ -144,6 +147,19 @@ benchmark_ets_insert() ->
     erlperf_job:request_stop(Job), %% use gen:stop(Job) for synchronous call
     %% expect at least 16 iterations (and up to 20)
     IterationsIn5Sec.
+
+decode_varint(Config) ->
+    ?assertEqual({1, <<>>}, im_proto:decode_varint(<<1:8>>)),
+    ?assertEqual({1, <<"foo">>}, im_proto:decode_varint(<<1:8, "foo">>)),
+    ?assertEqual({300, <<>>}, im_proto:decode_varint(<<44034:16>>)),
+    ?assertEqual({300, <<"bar">>}, im_proto:decode_varint(<<44034:16, "bar">>)),
+    Config.
+
+encode_varint(Config) ->
+    ?assertEqual(<<1:8>>, im_proto:encode_varint(1)),
+    ?assertEqual(<<44034:16>>, im_proto:encode_varint(300)),
+    ?assertError({badarg, -7}, im_proto:encode_varint(-7)),
+    Config.
 
 %%--------------------------------------------------------------------
 %% @spec TestCase(Config0) ->

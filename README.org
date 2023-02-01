@@ -1,3 +1,5 @@
+#+TITLE: IM Demo演示示例
+#+STARTUP: inlineimages
 *  简答的IM的演示示例
 ** 基础概念
 *** 单聊
@@ -64,19 +66,6 @@
 #+begin_src protobuf
   syntax = "proto3";
 
-  enum CommandType {
-      CONNECT = 0;
-      DISCONNECT = 1;
-      REQUEST = 2;
-      RESPONSE = 3;
-  }
-
-  message Command {
-      int32 version = 1;
-      CommandType command = 2;
-      bytes payload = 3;
-  }
-
   message Connect {
       string org = 1;
       string appkey = 2;
@@ -87,6 +76,16 @@
   message Disconnect {
       int32 code = 1;
       string reason = 2;
+  }
+
+  enum Status {
+      STATUS_OK = 0;
+      STATUS_FAIL = 1;
+  }
+
+  message ConAck {
+      Status status = 1;
+      optional string reason = 2;
   }
 
   enum RequestType {
@@ -127,8 +126,40 @@
       int32 code = 1;
       string reason = 2;
   }
+
+  message Command {
+      int32 version = 1;
+      optional Connect connect = 3;
+      optional ConAck conack = 4;
+      optional Disconnect disconnect = 5;
+      optional Request request = 6;
+      optional Response response = 7;
+  }
 #+end_src
 
 **** protobuf具体实现
-*** 长连接
-*** 短连接
+
+由于TCP的报文是字节流的形式，所以除了上面所示的通过pb将业务数据进行编码之后，还需要进行TCP层面的
+拆包，当前均是采用在数据前添加相应的报文长度的方式。添加长度的方式一般有两种，固定长度和变长的方式。
+目前为了减少数据大小，大多采用变长的方式，其中MQTT，protobuf本身的长度都是采用这种方式进行的。
+https://developers.google.com/protocol-buffers/docs/encoding?hl=zh-cn#varints
+
+**** 登录过程
+#+begin_src plantuml :file login.png
+@startuml
+User -> IMS: Connect with UserName, Token
+IMS --> User: ConAck with code，reason
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:login.png]]
+
+*****  登录场景分析
+
+|
+
+** 后续计划
+*** TODO 登录逻辑
+*** TODO 发消息逻辑
+*** TODO 压测登录、发消息逻辑
