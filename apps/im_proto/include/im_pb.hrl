@@ -25,9 +25,9 @@
         }).
 -endif.
 
--ifndef('CONACK_PB_H').
--define('CONACK_PB_H', true).
--record('ConAck',
+-ifndef('CONNACK_PB_H').
+-define('CONNACK_PB_H', true).
+-record('ConnAck',
         {status = 'STATUS_OK'   :: 'STATUS_OK' | 'STATUS_FAIL' | integer() | undefined, % = 1, optional, enum Status
          reason                 :: unicode:chardata() | undefined % = 2, optional
         }).
@@ -85,8 +85,9 @@
         {version = 0            :: integer() | undefined, % = 1, optional, 32 bits
          connect                :: im_pb:'Connect'() | undefined, % = 3, optional
          disconnect             :: im_pb:'Disconnect'() | undefined, % = 4, optional
-         request                :: im_pb:'Request'() | undefined, % = 5, optional
-         response               :: im_pb:'Response'() | undefined % = 6, optional
+         connack                :: im_pb:'ConnAck'() | undefined, % = 5, optional
+         request                :: im_pb:'Request'() | undefined, % = 6, optional
+         response               :: im_pb:'Response'() | undefined % = 7, optional
         }).
 -endif.
 

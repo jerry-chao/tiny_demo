@@ -9,7 +9,7 @@
 -module(im_proto).
 
 %% API
--export([connect/4, command/1, decode_command/1]).
+-export([connect/4, connack/2, command/1, decode_command/1]).
 -export([encode_varint/1, decode_varint/1]).
 -include_lib("im_proto/include/im_pb.hrl").
 
@@ -30,12 +30,20 @@ connect(Org, App, User, Token) ->
        token = Token
       }.
 
+connack(Code, Reason) ->
+    #'ConnAck'{status = Code, reason = Reason}.
 
-command(Connect) when is_record(Connect, 'Connect')->
+command(Connect) when is_record(Connect, 'Connect') ->
     CommandBinary = im_pb:encode_msg(#'Command'{connect = Connect}),
     Byte = byte_size(CommandBinary),
     Len = encode_varint(Byte),
+    <<Len/binary, CommandBinary/binary>>;
+command(ConnAck) when is_record(ConnAck, 'ConnAck') ->
+    CommandBinary = im_pb:encode_msg(#'Command'{connack = ConnAck}),
+    Byte = byte_size(CommandBinary),
+    Len = encode_varint(Byte),
     <<Len/binary, CommandBinary/binary>>.
+
 
 decode_command(Data) ->
     {Len, Rest} = decode_varint(Data),

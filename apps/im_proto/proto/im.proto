@@ -17,7 +17,7 @@ enum Status {
     STATUS_FAIL = 1;
 }
 
-message ConAck {
+message ConnAck {
     Status status = 1;
     optional string reason = 2;
 }
@@ -65,6 +65,7 @@ message Command {
     int32 version = 1;
     optional Connect connect = 3;
     optional Disconnect disconnect = 4;
-    optional Request request = 5;
-    optional Response response = 6;
+    optional ConnAck connack = 5;
+    optional Request request = 6;
+    optional Response response = 7;
 }

@@ -63,7 +63,7 @@
 
 -type 'Disconnect'() :: #'Disconnect'{}.
 
--type 'ConAck'() :: #'ConAck'{}.
+-type 'ConnAck'() :: #'ConnAck'{}.
 
 -type 'Option'() :: #'Option'{}.
 
@@ -79,9 +79,9 @@
 
 -type 'Command'() :: #'Command'{}.
 
--export_type(['Connect'/0, 'Disconnect'/0, 'ConAck'/0, 'Option'/0, 'Request'/0, 'MessageTxt'/0, 'MessageImg'/0, 'Message'/0, 'Response'/0, 'Command'/0]).
--type '$msg_name'() :: 'Connect' | 'Disconnect' | 'ConAck' | 'Option' | 'Request' | 'MessageTxt' | 'MessageImg' | 'Message' | 'Response' | 'Command'.
--type '$msg'() :: 'Connect'() | 'Disconnect'() | 'ConAck'() | 'Option'() | 'Request'() | 'MessageTxt'() | 'MessageImg'() | 'Message'() | 'Response'() | 'Command'().
+-export_type(['Connect'/0, 'Disconnect'/0, 'ConnAck'/0, 'Option'/0, 'Request'/0, 'MessageTxt'/0, 'MessageImg'/0, 'Message'/0, 'Response'/0, 'Command'/0]).
+-type '$msg_name'() :: 'Connect' | 'Disconnect' | 'ConnAck' | 'Option' | 'Request' | 'MessageTxt' | 'MessageImg' | 'Message' | 'Response' | 'Command'.
+-type '$msg'() :: 'Connect'() | 'Disconnect'() | 'ConnAck'() | 'Option'() | 'Request'() | 'MessageTxt'() | 'MessageImg'() | 'Message'() | 'Response'() | 'Command'().
 -export_type(['$msg_name'/0, '$msg'/0]).
 
 -dialyzer({no_underspecs, encode_msg/1}).
@@ -104,7 +104,7 @@ encode_msg(Msg, MsgName, Opts) ->
     case MsgName of
         'Connect' -> encode_msg_Connect(id(Msg, TrUserData), TrUserData);
         'Disconnect' -> encode_msg_Disconnect(id(Msg, TrUserData), TrUserData);
-        'ConAck' -> encode_msg_ConAck(id(Msg, TrUserData), TrUserData);
+        'ConnAck' -> encode_msg_ConnAck(id(Msg, TrUserData), TrUserData);
         'Option' -> encode_msg_Option(id(Msg, TrUserData), TrUserData);
         'Request' -> encode_msg_Request(id(Msg, TrUserData), TrUserData);
         'MessageTxt' -> encode_msg_MessageTxt(id(Msg, TrUserData), TrUserData);
@@ -184,10 +184,10 @@ encode_msg_Disconnect(#'Disconnect'{code = F1, reason = F2}, Bin, TrUserData) ->
            end
     end.
 
-encode_msg_ConAck(Msg, TrUserData) -> encode_msg_ConAck(Msg, <<>>, TrUserData).
+encode_msg_ConnAck(Msg, TrUserData) -> encode_msg_ConnAck(Msg, <<>>, TrUserData).
 
 
-encode_msg_ConAck(#'ConAck'{status = F1, reason = F2}, Bin, TrUserData) ->
+encode_msg_ConnAck(#'ConnAck'{status = F1, reason = F2}, Bin, TrUserData) ->
     B1 = if F1 == undefined -> Bin;
             true ->
                 begin
@@ -326,7 +326,7 @@ encode_msg_Response(#'Response'{code = F1, reason = F2}, Bin, TrUserData) ->
 encode_msg_Command(Msg, TrUserData) -> encode_msg_Command(Msg, <<>>, TrUserData).
 
 
-encode_msg_Command(#'Command'{version = F1, connect = F2, disconnect = F3, request = F4, response = F5}, Bin, TrUserData) ->
+encode_msg_Command(#'Command'{version = F1, connect = F2, disconnect = F3, connack = F4, request = F5, response = F6}, Bin, TrUserData) ->
     B1 = if F1 == undefined -> Bin;
             true ->
                 begin
@@ -343,10 +343,13 @@ encode_msg_Command(#'Command'{version = F1, connect = F2, disconnect = F3, reque
             true -> begin TrF3 = id(F3, TrUserData), e_mfield_Command_disconnect(TrF3, <<B2/binary, 34>>, TrUserData) end
          end,
     B4 = if F4 == undefined -> B3;
-            true -> begin TrF4 = id(F4, TrUserData), e_mfield_Command_request(TrF4, <<B3/binary, 42>>, TrUserData) end
+            true -> begin TrF4 = id(F4, TrUserData), e_mfield_Command_connack(TrF4, <<B3/binary, 42>>, TrUserData) end
          end,
-    if F5 == undefined -> B4;
-       true -> begin TrF5 = id(F5, TrUserData), e_mfield_Command_response(TrF5, <<B4/binary, 50>>, TrUserData) end
+    B5 = if F5 == undefined -> B4;
+            true -> begin TrF5 = id(F5, TrUserData), e_mfield_Command_request(TrF5, <<B4/binary, 50>>, TrUserData) end
+         end,
+    if F6 == undefined -> B5;
+       true -> begin TrF6 = id(F6, TrUserData), e_mfield_Command_response(TrF6, <<B5/binary, 58>>, TrUserData) end
     end.
 
 e_mfield_Request_opts(Msg, Bin, TrUserData) ->
@@ -367,6 +370,11 @@ e_mfield_Command_connect(Msg, Bin, TrUserData) ->
 
 e_mfield_Command_disconnect(Msg, Bin, TrUserData) ->
     SubBin = encode_msg_Disconnect(Msg, <<>>, TrUserData),
+    Bin2 = e_varint(byte_size(SubBin), Bin),
+    <<Bin2/binary, SubBin/binary>>.
+
+e_mfield_Command_connack(Msg, Bin, TrUserData) ->
+    SubBin = encode_msg_ConnAck(Msg, <<>>, TrUserData),
     Bin2 = e_varint(byte_size(SubBin), Bin),
     <<Bin2/binary, SubBin/binary>>.
 
@@ -533,7 +541,7 @@ decode_msg_1_catch(Bin, MsgName, TrUserData) ->
 
 decode_msg_2_doit('Connect', Bin, TrUserData) -> id(decode_msg_Connect(Bin, TrUserData), TrUserData);
 decode_msg_2_doit('Disconnect', Bin, TrUserData) -> id(decode_msg_Disconnect(Bin, TrUserData), TrUserData);
-decode_msg_2_doit('ConAck', Bin, TrUserData) -> id(decode_msg_ConAck(Bin, TrUserData), TrUserData);
+decode_msg_2_doit('ConnAck', Bin, TrUserData) -> id(decode_msg_ConnAck(Bin, TrUserData), TrUserData);
 decode_msg_2_doit('Option', Bin, TrUserData) -> id(decode_msg_Option(Bin, TrUserData), TrUserData);
 decode_msg_2_doit('Request', Bin, TrUserData) -> id(decode_msg_Request(Bin, TrUserData), TrUserData);
 decode_msg_2_doit('MessageTxt', Bin, TrUserData) -> id(decode_msg_MessageTxt(Bin, TrUserData), TrUserData);
@@ -660,56 +668,56 @@ skip_32_Disconnect(<<_:32, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> 
 
 skip_64_Disconnect(<<_:64, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dfp_read_field_def_Disconnect(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData).
 
-decode_msg_ConAck(Bin, TrUserData) -> dfp_read_field_def_ConAck(Bin, 0, 0, 0, id('STATUS_OK', TrUserData), id(undefined, TrUserData), TrUserData).
+decode_msg_ConnAck(Bin, TrUserData) -> dfp_read_field_def_ConnAck(Bin, 0, 0, 0, id('STATUS_OK', TrUserData), id(undefined, TrUserData), TrUserData).
 
-dfp_read_field_def_ConAck(<<8, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> d_field_ConAck_status(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData);
-dfp_read_field_def_ConAck(<<18, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> d_field_ConAck_reason(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData);
-dfp_read_field_def_ConAck(<<>>, 0, 0, _, F@_1, F@_2, _) -> #'ConAck'{status = F@_1, reason = F@_2};
-dfp_read_field_def_ConAck(Other, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dg_read_field_def_ConAck(Other, Z1, Z2, F, F@_1, F@_2, TrUserData).
+dfp_read_field_def_ConnAck(<<8, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> d_field_ConnAck_status(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData);
+dfp_read_field_def_ConnAck(<<18, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> d_field_ConnAck_reason(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData);
+dfp_read_field_def_ConnAck(<<>>, 0, 0, _, F@_1, F@_2, _) -> #'ConnAck'{status = F@_1, reason = F@_2};
+dfp_read_field_def_ConnAck(Other, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dg_read_field_def_ConnAck(Other, Z1, Z2, F, F@_1, F@_2, TrUserData).
 
-dg_read_field_def_ConAck(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) when N < 32 - 7 -> dg_read_field_def_ConAck(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, TrUserData);
-dg_read_field_def_ConAck(<<0:1, X:7, Rest/binary>>, N, Acc, _, F@_1, F@_2, TrUserData) ->
+dg_read_field_def_ConnAck(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) when N < 32 - 7 -> dg_read_field_def_ConnAck(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, TrUserData);
+dg_read_field_def_ConnAck(<<0:1, X:7, Rest/binary>>, N, Acc, _, F@_1, F@_2, TrUserData) ->
     Key = X bsl N + Acc,
     case Key of
-        8 -> d_field_ConAck_status(Rest, 0, 0, 0, F@_1, F@_2, TrUserData);
-        18 -> d_field_ConAck_reason(Rest, 0, 0, 0, F@_1, F@_2, TrUserData);
+        8 -> d_field_ConnAck_status(Rest, 0, 0, 0, F@_1, F@_2, TrUserData);
+        18 -> d_field_ConnAck_reason(Rest, 0, 0, 0, F@_1, F@_2, TrUserData);
         _ ->
             case Key band 7 of
-                0 -> skip_varint_ConAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData);
-                1 -> skip_64_ConAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData);
-                2 -> skip_length_delimited_ConAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData);
-                3 -> skip_group_ConAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData);
-                5 -> skip_32_ConAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData)
+                0 -> skip_varint_ConnAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData);
+                1 -> skip_64_ConnAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData);
+                2 -> skip_length_delimited_ConnAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData);
+                3 -> skip_group_ConnAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData);
+                5 -> skip_32_ConnAck(Rest, 0, 0, Key bsr 3, F@_1, F@_2, TrUserData)
             end
     end;
-dg_read_field_def_ConAck(<<>>, 0, 0, _, F@_1, F@_2, _) -> #'ConAck'{status = F@_1, reason = F@_2}.
+dg_read_field_def_ConnAck(<<>>, 0, 0, _, F@_1, F@_2, _) -> #'ConnAck'{status = F@_1, reason = F@_2}.
 
-d_field_ConAck_status(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) when N < 57 -> d_field_ConAck_status(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, TrUserData);
-d_field_ConAck_status(<<0:1, X:7, Rest/binary>>, N, Acc, F, _, F@_2, TrUserData) ->
+d_field_ConnAck_status(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) when N < 57 -> d_field_ConnAck_status(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, TrUserData);
+d_field_ConnAck_status(<<0:1, X:7, Rest/binary>>, N, Acc, F, _, F@_2, TrUserData) ->
     {NewFValue, RestF} = {id(d_enum_Status(begin <<Res:32/signed-native>> = <<(X bsl N + Acc):32/unsigned-native>>, id(Res, TrUserData) end), TrUserData), Rest},
-    dfp_read_field_def_ConAck(RestF, 0, 0, F, NewFValue, F@_2, TrUserData).
+    dfp_read_field_def_ConnAck(RestF, 0, 0, F, NewFValue, F@_2, TrUserData).
 
-d_field_ConAck_reason(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) when N < 57 -> d_field_ConAck_reason(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, TrUserData);
-d_field_ConAck_reason(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, _, TrUserData) ->
+d_field_ConnAck_reason(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) when N < 57 -> d_field_ConnAck_reason(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, TrUserData);
+d_field_ConnAck_reason(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, _, TrUserData) ->
     {NewFValue, RestF} = begin Len = X bsl N + Acc, <<Bytes:Len/binary, Rest2/binary>> = Rest, Bytes2 = binary:copy(Bytes), {id(Bytes2, TrUserData), Rest2} end,
-    dfp_read_field_def_ConAck(RestF, 0, 0, F, F@_1, NewFValue, TrUserData).
+    dfp_read_field_def_ConnAck(RestF, 0, 0, F, F@_1, NewFValue, TrUserData).
 
-skip_varint_ConAck(<<1:1, _:7, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> skip_varint_ConAck(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData);
-skip_varint_ConAck(<<0:1, _:7, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dfp_read_field_def_ConAck(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData).
+skip_varint_ConnAck(<<1:1, _:7, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> skip_varint_ConnAck(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData);
+skip_varint_ConnAck(<<0:1, _:7, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dfp_read_field_def_ConnAck(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData).
 
-skip_length_delimited_ConAck(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) when N < 57 -> skip_length_delimited_ConAck(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, TrUserData);
-skip_length_delimited_ConAck(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) ->
+skip_length_delimited_ConnAck(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) when N < 57 -> skip_length_delimited_ConnAck(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, TrUserData);
+skip_length_delimited_ConnAck(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, TrUserData) ->
     Length = X bsl N + Acc,
     <<_:Length/binary, Rest2/binary>> = Rest,
-    dfp_read_field_def_ConAck(Rest2, 0, 0, F, F@_1, F@_2, TrUserData).
+    dfp_read_field_def_ConnAck(Rest2, 0, 0, F, F@_1, F@_2, TrUserData).
 
-skip_group_ConAck(Bin, _, Z2, FNum, F@_1, F@_2, TrUserData) ->
+skip_group_ConnAck(Bin, _, Z2, FNum, F@_1, F@_2, TrUserData) ->
     {_, Rest} = read_group(Bin, FNum),
-    dfp_read_field_def_ConAck(Rest, 0, Z2, FNum, F@_1, F@_2, TrUserData).
+    dfp_read_field_def_ConnAck(Rest, 0, Z2, FNum, F@_1, F@_2, TrUserData).
 
-skip_32_ConAck(<<_:32, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dfp_read_field_def_ConAck(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData).
+skip_32_ConnAck(<<_:32, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dfp_read_field_def_ConnAck(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData).
 
-skip_64_ConAck(<<_:64, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dfp_read_field_def_ConAck(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData).
+skip_64_ConnAck(<<_:64, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dfp_read_field_def_ConnAck(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData).
 
 decode_msg_Option(Bin, TrUserData) -> dfp_read_field_def_Option(Bin, 0, 0, 0, id(false, TrUserData), TrUserData).
 
@@ -1003,43 +1011,45 @@ skip_32_Response(<<_:32, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> df
 
 skip_64_Response(<<_:64, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, TrUserData) -> dfp_read_field_def_Response(Rest, Z1, Z2, F, F@_1, F@_2, TrUserData).
 
-decode_msg_Command(Bin, TrUserData) -> dfp_read_field_def_Command(Bin, 0, 0, 0, id(0, TrUserData), id(undefined, TrUserData), id(undefined, TrUserData), id(undefined, TrUserData), id(undefined, TrUserData), TrUserData).
+decode_msg_Command(Bin, TrUserData) -> dfp_read_field_def_Command(Bin, 0, 0, 0, id(0, TrUserData), id(undefined, TrUserData), id(undefined, TrUserData), id(undefined, TrUserData), id(undefined, TrUserData), id(undefined, TrUserData), TrUserData).
 
-dfp_read_field_def_Command(<<8, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> d_field_Command_version(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-dfp_read_field_def_Command(<<26, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> d_field_Command_connect(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-dfp_read_field_def_Command(<<34, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> d_field_Command_disconnect(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-dfp_read_field_def_Command(<<42, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> d_field_Command_request(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-dfp_read_field_def_Command(<<50, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> d_field_Command_response(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-dfp_read_field_def_Command(<<>>, 0, 0, _, F@_1, F@_2, F@_3, F@_4, F@_5, _) -> #'Command'{version = F@_1, connect = F@_2, disconnect = F@_3, request = F@_4, response = F@_5};
-dfp_read_field_def_Command(Other, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> dg_read_field_def_Command(Other, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData).
+dfp_read_field_def_Command(<<8, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> d_field_Command_version(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+dfp_read_field_def_Command(<<26, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> d_field_Command_connect(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+dfp_read_field_def_Command(<<34, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> d_field_Command_disconnect(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+dfp_read_field_def_Command(<<42, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> d_field_Command_connack(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+dfp_read_field_def_Command(<<50, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> d_field_Command_request(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+dfp_read_field_def_Command(<<58, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> d_field_Command_response(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+dfp_read_field_def_Command(<<>>, 0, 0, _, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, _) -> #'Command'{version = F@_1, connect = F@_2, disconnect = F@_3, connack = F@_4, request = F@_5, response = F@_6};
+dfp_read_field_def_Command(Other, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> dg_read_field_def_Command(Other, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData).
 
-dg_read_field_def_Command(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) when N < 32 - 7 -> dg_read_field_def_Command(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-dg_read_field_def_Command(<<0:1, X:7, Rest/binary>>, N, Acc, _, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
+dg_read_field_def_Command(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) when N < 32 - 7 -> dg_read_field_def_Command(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+dg_read_field_def_Command(<<0:1, X:7, Rest/binary>>, N, Acc, _, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) ->
     Key = X bsl N + Acc,
     case Key of
-        8 -> d_field_Command_version(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-        26 -> d_field_Command_connect(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-        34 -> d_field_Command_disconnect(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-        42 -> d_field_Command_request(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-        50 -> d_field_Command_response(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
+        8 -> d_field_Command_version(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+        26 -> d_field_Command_connect(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+        34 -> d_field_Command_disconnect(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+        42 -> d_field_Command_connack(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+        50 -> d_field_Command_request(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+        58 -> d_field_Command_response(Rest, 0, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
         _ ->
             case Key band 7 of
-                0 -> skip_varint_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-                1 -> skip_64_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-                2 -> skip_length_delimited_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-                3 -> skip_group_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-                5 -> skip_32_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData)
+                0 -> skip_varint_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+                1 -> skip_64_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+                2 -> skip_length_delimited_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+                3 -> skip_group_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+                5 -> skip_32_Command(Rest, 0, 0, Key bsr 3, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData)
             end
     end;
-dg_read_field_def_Command(<<>>, 0, 0, _, F@_1, F@_2, F@_3, F@_4, F@_5, _) -> #'Command'{version = F@_1, connect = F@_2, disconnect = F@_3, request = F@_4, response = F@_5}.
+dg_read_field_def_Command(<<>>, 0, 0, _, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, _) -> #'Command'{version = F@_1, connect = F@_2, disconnect = F@_3, connack = F@_4, request = F@_5, response = F@_6}.
 
-d_field_Command_version(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) when N < 57 -> d_field_Command_version(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-d_field_Command_version(<<0:1, X:7, Rest/binary>>, N, Acc, F, _, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
+d_field_Command_version(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) when N < 57 -> d_field_Command_version(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+d_field_Command_version(<<0:1, X:7, Rest/binary>>, N, Acc, F, _, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) ->
     {NewFValue, RestF} = {begin <<Res:32/signed-native>> = <<(X bsl N + Acc):32/unsigned-native>>, id(Res, TrUserData) end, Rest},
-    dfp_read_field_def_Command(RestF, 0, 0, F, NewFValue, F@_2, F@_3, F@_4, F@_5, TrUserData).
+    dfp_read_field_def_Command(RestF, 0, 0, F, NewFValue, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData).
 
-d_field_Command_connect(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) when N < 57 -> d_field_Command_connect(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-d_field_Command_connect(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, Prev, F@_3, F@_4, F@_5, TrUserData) ->
+d_field_Command_connect(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) when N < 57 -> d_field_Command_connect(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+d_field_Command_connect(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, Prev, F@_3, F@_4, F@_5, F@_6, TrUserData) ->
     {NewFValue, RestF} = begin Len = X bsl N + Acc, <<Bs:Len/binary, Rest2/binary>> = Rest, {id(decode_msg_Connect(Bs, TrUserData), TrUserData), Rest2} end,
     dfp_read_field_def_Command(RestF,
                                0,
@@ -1052,10 +1062,11 @@ d_field_Command_connect(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, Prev, F@_3, 
                                F@_3,
                                F@_4,
                                F@_5,
+                               F@_6,
                                TrUserData).
 
-d_field_Command_disconnect(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) when N < 57 -> d_field_Command_disconnect(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-d_field_Command_disconnect(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, Prev, F@_4, F@_5, TrUserData) ->
+d_field_Command_disconnect(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) when N < 57 -> d_field_Command_disconnect(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+d_field_Command_disconnect(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, Prev, F@_4, F@_5, F@_6, TrUserData) ->
     {NewFValue, RestF} = begin Len = X bsl N + Acc, <<Bs:Len/binary, Rest2/binary>> = Rest, {id(decode_msg_Disconnect(Bs, TrUserData), TrUserData), Rest2} end,
     dfp_read_field_def_Command(RestF,
                                0,
@@ -1068,11 +1079,12 @@ d_field_Command_disconnect(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, Pre
                                end,
                                F@_4,
                                F@_5,
+                               F@_6,
                                TrUserData).
 
-d_field_Command_request(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) when N < 57 -> d_field_Command_request(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-d_field_Command_request(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, Prev, F@_5, TrUserData) ->
-    {NewFValue, RestF} = begin Len = X bsl N + Acc, <<Bs:Len/binary, Rest2/binary>> = Rest, {id(decode_msg_Request(Bs, TrUserData), TrUserData), Rest2} end,
+d_field_Command_connack(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) when N < 57 -> d_field_Command_connack(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+d_field_Command_connack(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, Prev, F@_5, F@_6, TrUserData) ->
+    {NewFValue, RestF} = begin Len = X bsl N + Acc, <<Bs:Len/binary, Rest2/binary>> = Rest, {id(decode_msg_ConnAck(Bs, TrUserData), TrUserData), Rest2} end,
     dfp_read_field_def_Command(RestF,
                                0,
                                0,
@@ -1081,14 +1093,15 @@ d_field_Command_request(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, 
                                F@_2,
                                F@_3,
                                if Prev == undefined -> NewFValue;
-                                  true -> merge_msg_Request(Prev, NewFValue, TrUserData)
+                                  true -> merge_msg_ConnAck(Prev, NewFValue, TrUserData)
                                end,
                                F@_5,
+                               F@_6,
                                TrUserData).
 
-d_field_Command_response(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) when N < 57 -> d_field_Command_response(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-d_field_Command_response(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, Prev, TrUserData) ->
-    {NewFValue, RestF} = begin Len = X bsl N + Acc, <<Bs:Len/binary, Rest2/binary>> = Rest, {id(decode_msg_Response(Bs, TrUserData), TrUserData), Rest2} end,
+d_field_Command_request(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) when N < 57 -> d_field_Command_request(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+d_field_Command_request(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, Prev, F@_6, TrUserData) ->
+    {NewFValue, RestF} = begin Len = X bsl N + Acc, <<Bs:Len/binary, Rest2/binary>> = Rest, {id(decode_msg_Request(Bs, TrUserData), TrUserData), Rest2} end,
     dfp_read_field_def_Command(RestF,
                                0,
                                0,
@@ -1098,26 +1111,44 @@ d_field_Command_response(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3,
                                F@_3,
                                F@_4,
                                if Prev == undefined -> NewFValue;
+                                  true -> merge_msg_Request(Prev, NewFValue, TrUserData)
+                               end,
+                               F@_6,
+                               TrUserData).
+
+d_field_Command_response(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) when N < 57 -> d_field_Command_response(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+d_field_Command_response(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, Prev, TrUserData) ->
+    {NewFValue, RestF} = begin Len = X bsl N + Acc, <<Bs:Len/binary, Rest2/binary>> = Rest, {id(decode_msg_Response(Bs, TrUserData), TrUserData), Rest2} end,
+    dfp_read_field_def_Command(RestF,
+                               0,
+                               0,
+                               F,
+                               F@_1,
+                               F@_2,
+                               F@_3,
+                               F@_4,
+                               F@_5,
+                               if Prev == undefined -> NewFValue;
                                   true -> merge_msg_Response(Prev, NewFValue, TrUserData)
                                end,
                                TrUserData).
 
-skip_varint_Command(<<1:1, _:7, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> skip_varint_Command(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-skip_varint_Command(<<0:1, _:7, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> dfp_read_field_def_Command(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData).
+skip_varint_Command(<<1:1, _:7, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> skip_varint_Command(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+skip_varint_Command(<<0:1, _:7, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> dfp_read_field_def_Command(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData).
 
-skip_length_delimited_Command(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) when N < 57 -> skip_length_delimited_Command(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
-skip_length_delimited_Command(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
+skip_length_delimited_Command(<<1:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) when N < 57 -> skip_length_delimited_Command(Rest, N + 7, X bsl N + Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData);
+skip_length_delimited_Command(<<0:1, X:7, Rest/binary>>, N, Acc, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) ->
     Length = X bsl N + Acc,
     <<_:Length/binary, Rest2/binary>> = Rest,
-    dfp_read_field_def_Command(Rest2, 0, 0, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData).
+    dfp_read_field_def_Command(Rest2, 0, 0, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData).
 
-skip_group_Command(Bin, _, Z2, FNum, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
+skip_group_Command(Bin, _, Z2, FNum, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) ->
     {_, Rest} = read_group(Bin, FNum),
-    dfp_read_field_def_Command(Rest, 0, Z2, FNum, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData).
+    dfp_read_field_def_Command(Rest, 0, Z2, FNum, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData).
 
-skip_32_Command(<<_:32, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> dfp_read_field_def_Command(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData).
+skip_32_Command(<<_:32, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> dfp_read_field_def_Command(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData).
 
-skip_64_Command(<<_:64, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) -> dfp_read_field_def_Command(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData).
+skip_64_Command(<<_:64, Rest/binary>>, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData) -> dfp_read_field_def_Command(Rest, Z1, Z2, F, F@_1, F@_2, F@_3, F@_4, F@_5, F@_6, TrUserData).
 
 d_enum_Status(0) -> 'STATUS_OK';
 d_enum_Status(1) -> 'STATUS_FAIL';
@@ -1200,7 +1231,7 @@ merge_msgs(Prev, New, MsgName, Opts) ->
     case MsgName of
         'Connect' -> merge_msg_Connect(Prev, New, TrUserData);
         'Disconnect' -> merge_msg_Disconnect(Prev, New, TrUserData);
-        'ConAck' -> merge_msg_ConAck(Prev, New, TrUserData);
+        'ConnAck' -> merge_msg_ConnAck(Prev, New, TrUserData);
         'Option' -> merge_msg_Option(Prev, New, TrUserData);
         'Request' -> merge_msg_Request(Prev, New, TrUserData);
         'MessageTxt' -> merge_msg_MessageTxt(Prev, New, TrUserData);
@@ -1240,16 +1271,16 @@ merge_msg_Disconnect(#'Disconnect'{code = PFcode, reason = PFreason}, #'Disconne
                          true -> NFreason
                       end}.
 
--compile({nowarn_unused_function,merge_msg_ConAck/3}).
-merge_msg_ConAck(#'ConAck'{status = PFstatus, reason = PFreason}, #'ConAck'{status = NFstatus, reason = NFreason}, _) ->
-    #'ConAck'{status =
-                  if NFstatus =:= undefined -> PFstatus;
-                     true -> NFstatus
-                  end,
-              reason =
-                  if NFreason =:= undefined -> PFreason;
-                     true -> NFreason
-                  end}.
+-compile({nowarn_unused_function,merge_msg_ConnAck/3}).
+merge_msg_ConnAck(#'ConnAck'{status = PFstatus, reason = PFreason}, #'ConnAck'{status = NFstatus, reason = NFreason}, _) ->
+    #'ConnAck'{status =
+                   if NFstatus =:= undefined -> PFstatus;
+                      true -> NFstatus
+                   end,
+               reason =
+                   if NFreason =:= undefined -> PFreason;
+                      true -> NFreason
+                   end}.
 
 -compile({nowarn_unused_function,merge_msg_Option/3}).
 merge_msg_Option(#'Option'{offline = PFoffline}, #'Option'{offline = NFoffline}, _) ->
@@ -1311,8 +1342,8 @@ merge_msg_Response(#'Response'{code = PFcode, reason = PFreason}, #'Response'{co
                     end}.
 
 -compile({nowarn_unused_function,merge_msg_Command/3}).
-merge_msg_Command(#'Command'{version = PFversion, connect = PFconnect, disconnect = PFdisconnect, request = PFrequest, response = PFresponse},
-                  #'Command'{version = NFversion, connect = NFconnect, disconnect = NFdisconnect, request = NFrequest, response = NFresponse}, TrUserData) ->
+merge_msg_Command(#'Command'{version = PFversion, connect = PFconnect, disconnect = PFdisconnect, connack = PFconnack, request = PFrequest, response = PFresponse},
+                  #'Command'{version = NFversion, connect = NFconnect, disconnect = NFdisconnect, connack = NFconnack, request = NFrequest, response = NFresponse}, TrUserData) ->
     #'Command'{version =
                    if NFversion =:= undefined -> PFversion;
                       true -> NFversion
@@ -1326,6 +1357,11 @@ merge_msg_Command(#'Command'{version = PFversion, connect = PFconnect, disconnec
                    if PFdisconnect /= undefined, NFdisconnect /= undefined -> merge_msg_Disconnect(PFdisconnect, NFdisconnect, TrUserData);
                       PFdisconnect == undefined -> NFdisconnect;
                       NFdisconnect == undefined -> PFdisconnect
+                   end,
+               connack =
+                   if PFconnack /= undefined, NFconnack /= undefined -> merge_msg_ConnAck(PFconnack, NFconnack, TrUserData);
+                      PFconnack == undefined -> NFconnack;
+                      NFconnack == undefined -> PFconnack
                    end,
                request =
                    if PFrequest /= undefined, NFrequest /= undefined -> merge_msg_Request(PFrequest, NFrequest, TrUserData);
@@ -1351,7 +1387,7 @@ verify_msg(Msg, MsgName, Opts) ->
     case MsgName of
         'Connect' -> v_msg_Connect(Msg, [MsgName], TrUserData);
         'Disconnect' -> v_msg_Disconnect(Msg, [MsgName], TrUserData);
-        'ConAck' -> v_msg_ConAck(Msg, [MsgName], TrUserData);
+        'ConnAck' -> v_msg_ConnAck(Msg, [MsgName], TrUserData);
         'Option' -> v_msg_Option(Msg, [MsgName], TrUserData);
         'Request' -> v_msg_Request(Msg, [MsgName], TrUserData);
         'MessageTxt' -> v_msg_MessageTxt(Msg, [MsgName], TrUserData);
@@ -1393,9 +1429,9 @@ v_msg_Disconnect(#'Disconnect'{code = F1, reason = F2}, Path, TrUserData) ->
     ok;
 v_msg_Disconnect(X, Path, _TrUserData) -> mk_type_error({expected_msg, 'Disconnect'}, X, Path).
 
--compile({nowarn_unused_function,v_msg_ConAck/3}).
--dialyzer({nowarn_function,v_msg_ConAck/3}).
-v_msg_ConAck(#'ConAck'{status = F1, reason = F2}, Path, TrUserData) ->
+-compile({nowarn_unused_function,v_msg_ConnAck/3}).
+-dialyzer({nowarn_function,v_msg_ConnAck/3}).
+v_msg_ConnAck(#'ConnAck'{status = F1, reason = F2}, Path, TrUserData) ->
     if F1 == undefined -> ok;
        true -> v_enum_Status(F1, [status | Path], TrUserData)
     end,
@@ -1403,7 +1439,7 @@ v_msg_ConAck(#'ConAck'{status = F1, reason = F2}, Path, TrUserData) ->
        true -> v_type_string(F2, [reason | Path], TrUserData)
     end,
     ok;
-v_msg_ConAck(X, Path, _TrUserData) -> mk_type_error({expected_msg, 'ConAck'}, X, Path).
+v_msg_ConnAck(X, Path, _TrUserData) -> mk_type_error({expected_msg, 'ConnAck'}, X, Path).
 
 -compile({nowarn_unused_function,v_msg_Option/3}).
 -dialyzer({nowarn_function,v_msg_Option/3}).
@@ -1475,7 +1511,7 @@ v_msg_Response(X, Path, _TrUserData) -> mk_type_error({expected_msg, 'Response'}
 
 -compile({nowarn_unused_function,v_msg_Command/3}).
 -dialyzer({nowarn_function,v_msg_Command/3}).
-v_msg_Command(#'Command'{version = F1, connect = F2, disconnect = F3, request = F4, response = F5}, Path, TrUserData) ->
+v_msg_Command(#'Command'{version = F1, connect = F2, disconnect = F3, connack = F4, request = F5, response = F6}, Path, TrUserData) ->
     if F1 == undefined -> ok;
        true -> v_type_int32(F1, [version | Path], TrUserData)
     end,
@@ -1486,10 +1522,13 @@ v_msg_Command(#'Command'{version = F1, connect = F2, disconnect = F3, request = 
        true -> v_msg_Disconnect(F3, [disconnect | Path], TrUserData)
     end,
     if F4 == undefined -> ok;
-       true -> v_msg_Request(F4, [request | Path], TrUserData)
+       true -> v_msg_ConnAck(F4, [connack | Path], TrUserData)
     end,
     if F5 == undefined -> ok;
-       true -> v_msg_Response(F5, [response | Path], TrUserData)
+       true -> v_msg_Request(F5, [request | Path], TrUserData)
+    end,
+    if F6 == undefined -> ok;
+       true -> v_msg_Response(F6, [response | Path], TrUserData)
     end,
     ok;
 v_msg_Command(X, Path, _TrUserData) -> mk_type_error({expected_msg, 'Command'}, X, Path).
@@ -1594,7 +1633,7 @@ get_msg_defs() ->
        #field{name = user, fnum = 3, rnum = 4, type = string, occurrence = defaulty, opts = []},
        #field{name = token, fnum = 4, rnum = 5, type = string, occurrence = defaulty, opts = []}]},
      {{msg, 'Disconnect'}, [#field{name = code, fnum = 1, rnum = 2, type = int32, occurrence = defaulty, opts = []}, #field{name = reason, fnum = 2, rnum = 3, type = string, occurrence = defaulty, opts = []}]},
-     {{msg, 'ConAck'}, [#field{name = status, fnum = 1, rnum = 2, type = {enum, 'Status'}, occurrence = defaulty, opts = []}, #field{name = reason, fnum = 2, rnum = 3, type = string, occurrence = optional, opts = []}]},
+     {{msg, 'ConnAck'}, [#field{name = status, fnum = 1, rnum = 2, type = {enum, 'Status'}, occurrence = defaulty, opts = []}, #field{name = reason, fnum = 2, rnum = 3, type = string, occurrence = optional, opts = []}]},
      {{msg, 'Option'}, [#field{name = offline, fnum = 1, rnum = 2, type = bool, occurrence = defaulty, opts = []}]},
      {{msg, 'Request'},
       [#field{name = type, fnum = 1, rnum = 2, type = {enum, 'RequestType'}, occurrence = defaulty, opts = []},
@@ -1608,17 +1647,18 @@ get_msg_defs() ->
       [#field{name = version, fnum = 1, rnum = 2, type = int32, occurrence = defaulty, opts = []},
        #field{name = connect, fnum = 3, rnum = 3, type = {msg, 'Connect'}, occurrence = optional, opts = []},
        #field{name = disconnect, fnum = 4, rnum = 4, type = {msg, 'Disconnect'}, occurrence = optional, opts = []},
-       #field{name = request, fnum = 5, rnum = 5, type = {msg, 'Request'}, occurrence = optional, opts = []},
-       #field{name = response, fnum = 6, rnum = 6, type = {msg, 'Response'}, occurrence = optional, opts = []}]}].
+       #field{name = connack, fnum = 5, rnum = 5, type = {msg, 'ConnAck'}, occurrence = optional, opts = []},
+       #field{name = request, fnum = 6, rnum = 6, type = {msg, 'Request'}, occurrence = optional, opts = []},
+       #field{name = response, fnum = 7, rnum = 7, type = {msg, 'Response'}, occurrence = optional, opts = []}]}].
 
 
-get_msg_names() -> ['Connect', 'Disconnect', 'ConAck', 'Option', 'Request', 'MessageTxt', 'MessageImg', 'Message', 'Response', 'Command'].
+get_msg_names() -> ['Connect', 'Disconnect', 'ConnAck', 'Option', 'Request', 'MessageTxt', 'MessageImg', 'Message', 'Response', 'Command'].
 
 
 get_group_names() -> [].
 
 
-get_msg_or_group_names() -> ['Connect', 'Disconnect', 'ConAck', 'Option', 'Request', 'MessageTxt', 'MessageImg', 'Message', 'Response', 'Command'].
+get_msg_or_group_names() -> ['Connect', 'Disconnect', 'ConnAck', 'Option', 'Request', 'MessageTxt', 'MessageImg', 'Message', 'Response', 'Command'].
 
 
 get_enum_names() -> ['Status', 'RequestType', 'MessageType'].
@@ -1644,7 +1684,7 @@ find_msg_def('Connect') ->
      #field{name = user, fnum = 3, rnum = 4, type = string, occurrence = defaulty, opts = []},
      #field{name = token, fnum = 4, rnum = 5, type = string, occurrence = defaulty, opts = []}];
 find_msg_def('Disconnect') -> [#field{name = code, fnum = 1, rnum = 2, type = int32, occurrence = defaulty, opts = []}, #field{name = reason, fnum = 2, rnum = 3, type = string, occurrence = defaulty, opts = []}];
-find_msg_def('ConAck') -> [#field{name = status, fnum = 1, rnum = 2, type = {enum, 'Status'}, occurrence = defaulty, opts = []}, #field{name = reason, fnum = 2, rnum = 3, type = string, occurrence = optional, opts = []}];
+find_msg_def('ConnAck') -> [#field{name = status, fnum = 1, rnum = 2, type = {enum, 'Status'}, occurrence = defaulty, opts = []}, #field{name = reason, fnum = 2, rnum = 3, type = string, occurrence = optional, opts = []}];
 find_msg_def('Option') -> [#field{name = offline, fnum = 1, rnum = 2, type = bool, occurrence = defaulty, opts = []}];
 find_msg_def('Request') ->
     [#field{name = type, fnum = 1, rnum = 2, type = {enum, 'RequestType'}, occurrence = defaulty, opts = []},
@@ -1658,8 +1698,9 @@ find_msg_def('Command') ->
     [#field{name = version, fnum = 1, rnum = 2, type = int32, occurrence = defaulty, opts = []},
      #field{name = connect, fnum = 3, rnum = 3, type = {msg, 'Connect'}, occurrence = optional, opts = []},
      #field{name = disconnect, fnum = 4, rnum = 4, type = {msg, 'Disconnect'}, occurrence = optional, opts = []},
-     #field{name = request, fnum = 5, rnum = 5, type = {msg, 'Request'}, occurrence = optional, opts = []},
-     #field{name = response, fnum = 6, rnum = 6, type = {msg, 'Response'}, occurrence = optional, opts = []}];
+     #field{name = connack, fnum = 5, rnum = 5, type = {msg, 'ConnAck'}, occurrence = optional, opts = []},
+     #field{name = request, fnum = 6, rnum = 6, type = {msg, 'Request'}, occurrence = optional, opts = []},
+     #field{name = response, fnum = 7, rnum = 7, type = {msg, 'Response'}, occurrence = optional, opts = []}];
 find_msg_def(_) -> error.
 
 
@@ -1748,7 +1789,7 @@ service_and_rpc_name_to_fqbins(S, R) -> error({gpb_error, {badservice_or_rpc, {S
 
 fqbin_to_msg_name(<<"Connect">>) -> 'Connect';
 fqbin_to_msg_name(<<"Disconnect">>) -> 'Disconnect';
-fqbin_to_msg_name(<<"ConAck">>) -> 'ConAck';
+fqbin_to_msg_name(<<"ConnAck">>) -> 'ConnAck';
 fqbin_to_msg_name(<<"Option">>) -> 'Option';
 fqbin_to_msg_name(<<"Request">>) -> 'Request';
 fqbin_to_msg_name(<<"MessageTxt">>) -> 'MessageTxt';
@@ -1761,7 +1802,7 @@ fqbin_to_msg_name(E) -> error({gpb_error, {badmsg, E}}).
 
 msg_name_to_fqbin('Connect') -> <<"Connect">>;
 msg_name_to_fqbin('Disconnect') -> <<"Disconnect">>;
-msg_name_to_fqbin('ConAck') -> <<"ConAck">>;
+msg_name_to_fqbin('ConnAck') -> <<"ConnAck">>;
 msg_name_to_fqbin('Option') -> <<"Option">>;
 msg_name_to_fqbin('Request') -> <<"Request">>;
 msg_name_to_fqbin('MessageTxt') -> <<"MessageTxt">>;
@@ -1811,7 +1852,7 @@ get_all_source_basenames() -> ["im.proto"].
 get_all_proto_names() -> ["im"].
 
 
-get_msg_containment("im") -> ['Command', 'ConAck', 'Connect', 'Disconnect', 'Message', 'MessageImg', 'MessageTxt', 'Option', 'Request', 'Response'];
+get_msg_containment("im") -> ['Command', 'ConnAck', 'Connect', 'Disconnect', 'Message', 'MessageImg', 'MessageTxt', 'Option', 'Request', 'Response'];
 get_msg_containment(P) -> error({gpb_error, {badproto, P}}).
 
 
@@ -1839,7 +1880,7 @@ get_proto_by_msg_name_as_fqbin(<<"Command">>) -> "im";
 get_proto_by_msg_name_as_fqbin(<<"Response">>) -> "im";
 get_proto_by_msg_name_as_fqbin(<<"Message">>) -> "im";
 get_proto_by_msg_name_as_fqbin(<<"MessageImg">>) -> "im";
-get_proto_by_msg_name_as_fqbin(<<"ConAck">>) -> "im";
+get_proto_by_msg_name_as_fqbin(<<"ConnAck">>) -> "im";
 get_proto_by_msg_name_as_fqbin(<<"Option">>) -> "im";
 get_proto_by_msg_name_as_fqbin(E) -> error({gpb_error, {badmsg, E}}).
 

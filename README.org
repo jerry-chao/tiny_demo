@@ -156,10 +156,3 @@ IMS --> User: ConAck with code，reason
 [[file:login.png]]
 
 *****  登录场景分析
-
-|
-
-** 后续计划
-*** TODO 登录逻辑
-*** TODO 发消息逻辑
-*** TODO 压测登录、发消息逻辑

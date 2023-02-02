@@ -24,8 +24,6 @@
 -define(SERVER, ?MODULE).
 -include_lib("kernel/include/logger.hrl").
 
--record(state, {transport, socket}).
-
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -62,12 +60,14 @@ start_link(Ref, Transport, Opts) ->
           ignore.
 init([Ref, Transport, _Opts]) ->
     process_flag(trap_exit, true),
-    {ok, #state{transport = Transport}, {continue, Ref}}.
+    {ok, #{transport => Transport, buf => <<>>}, {continue, Ref}}.
 
-handle_continue(Ref, #state{transport = Transport} = State) ->
+handle_continue(Ref, #{transport := Transport} = State) ->
     {ok, Socket} = ranch:handshake(Ref),
     ok = Transport:setopts(Socket, [{active, once}, {packet, 0}]),
-    {noreply, State#state{socket = Socket}}.
+    NewStateSocket = maps:put(socket, Socket, State),
+    NewStateStatus = maps:put(status, opening, NewStateSocket),
+    {noreply, NewStateStatus}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -113,11 +113,17 @@ handle_cast(_Request, State) ->
           {noreply, NewState :: term(), Timeout :: timeout()} |
           {noreply, NewState :: term(), hibernate} |
           {stop, Reason :: normal | term(), NewState :: term()}.
-handle_info({tcp, Socket, Data}, #state{socket = Socket, transport = Transport} = State) ->
-    Command = im_proto:decode_command(Data),
-    ?LOG_INFO("server recv command ~p", [Command]),
+handle_info({tcp, Socket, Data}, #{socket := Socket, transport := Transport, buf := Buf} = State) ->
+
     Transport:setopts(Socket, [{active, once}]),
-    {noreply, State};
+    case im_proto:decode_command(<<Buf/binary, Data/binary>>) of
+        {more, NewBuf} ->
+            {noreply, maps:put(buf, NewBuf, State)};
+        {Command, NewBuf} ->
+            NewState = command_handler:handle(Command, State),
+            ?LOG_INFO("server recv command ~p", [Command]),
+            {noreply, maps:put(buf, NewBuf, NewState)}
+    end;
 handle_info({tcp_closed, _Socket}, _State) ->
     {stop, normal};
 handle_info({tcp_error, _, Reason}, _State) ->
