@@ -22,25 +22,8 @@ message ConnAck {
     optional string reason = 2;
 }
 
-enum RequestType {
-    MESSAGE = 0;
-    CONTACT = 1;
-    GROUP = 2;
-}
-
 message Option {
-    bool offline = 1;
-}
-
-message Request {
-    RequestType type = 1;
-    bytes payload = 2;
-    repeated Option opts = 3;
-}
-
-enum MessageType {
-    TXT = 0;
-    IMAGE = 1;
+    optional bool offline = 1;
 }
 
 message MessageTxt {
@@ -51,21 +34,22 @@ message MessageImg {
     string url = 1;
 }
 
-message Message {
-    MessageType type = 1;
-    bytes payload = 2;
+message Request {
+    optional MessageTxt text = 1;
+    optional MessageImg img = 2;
+    repeated Option opts = 3;
 }
 
 message Response {
-    int32 code = 1;
+    Status code = 1;
     string reason = 2;
 }
 
 message Command {
     int32 version = 1;
-    optional Connect connect = 3;
-    optional Disconnect disconnect = 4;
-    optional ConnAck connack = 5;
-    optional Request request = 6;
-    optional Response response = 7;
+    optional Connect connect = 2;
+    optional Disconnect disconnect = 3;
+    optional ConnAck connack = 4;
+    optional Request request = 5;
+    optional Response response = 6;
 }

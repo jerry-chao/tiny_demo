@@ -2,6 +2,76 @@
 #+STARTUP: inlineimages
 *  简答的IM的演示示例
 ** 基础概念
+
+首先从大的角度理解什么是一个即时通讯系统，即时通讯系统解决的是什么问题，简单通俗点就是能够将信息从一个终端传递到目标终端。
+
+[[./img/simple.png]]
+
+整体来看做的事情非常的简单，这也是为什么实现一个IM的非常的简单，要在复杂的现实网络环境下，高效、可靠的实现上述功能就需要付出很多的努力。
+
+我们通过一个简单的即时通讯示例，逐渐的是怎么一步一步的变成一个非常复杂的系统。凡是都有一个逐渐演变的过程。在演变的过程中，知道为什么遇到
+这些问题，业界又是怎么解决这些问题的，做到不仅知其然，而且也要知其所以然。
+
+** 问题分解
+*** 连接服务器
+建立和服务器的连接，并且能够进行双向的通信。
+*** 发送消息到服务器
+消息的发送者能够将自己想发送给接收者的信息发送到服务器上，后续的动作就交给服务器去完成。
+*** 接收服务器投递的消息
+消息接收者能够实时收到其他人发给自己的消息。
+** 技术解决方案
+技术选型上，直接采用TCP作为最底层的使用技术，当然也是可以选择UDP的技术，只要满足双向通讯的技术即可以。
+
+编程语言上使用，我比较擅长的erlang变成语言进行demo的实现。首先实现一个简单的TCP的client-server的模型。
+** 消息可靠性
+*** 业务层ACK机制
+业务层的ACK机制配合超时重传和去重逻辑保障消息的可靠性。
+发送消息时发送者依据服务端的ACK来确认消息发送成功，配合客户端生成的seqid和服务端的去重机制保证消息可靠传递
+到服务端的同时，也避免了消息重复。服务端确保同步完成消息的落盘后才会给客户端ACK，配合DB的持久化技术保障消息的
+可靠持久化。存储的可靠性则充分利用了成熟的存储持久化方案，包含但不仅限于主从备份，集群方案等。消息投递上则是
+则客户端业务上明确收到该消息后才会给服务端进行ACK，服务端进一步删除相应的消息。
+
+#+begin_src plantuml :file ack.png
+  @startuml
+  group send logic [失败时进行重试]
+          activate Sender
+                  Sender -> IMS: send message(seqid=1)
+
+                  group store logic [持久化，去重]
+                          activate IMS
+                                  IMS -> Storage: generate unique msgid\nstore message to db
+                                  activate Storage
+                                          Storage --> IMS: store message suc
+                                  deactivate Storage
+                                  IMS --> Sender: return suc, msgid
+                          deactivate IMS
+                  end
+          deactivate Sender
+  end
+
+  group receiver logic [ack后移除消息]
+          IMS -> Receiver: send message to Receiver
+          activate IMS
+                  activate Receiver
+                          Receiver --> IMS: ack message
+                  deactivate Receiver
+                  IMS -> Storage: delete message
+                  activate Storage
+                          Storage --> IMS: ack delete message
+                  deactivate Storage
+          deactivate IMS
+  end
+  @enduml
+#+end_src
+
+#+RESULTS:
+[[file:ack.png]]
+*** 心跳机制
+心跳机制主要时从业务体验上进一步提升可靠性的感知情况。客户端新建连接之后会进行离线消息的拉取，
+为了保障体验，对于离线消息量太大的情况不会长时间阻塞客户端，会按照会话层面分批次的拉取。没有完全拉
+取的会话，有新消息或者心跳都会继续进行拉取消息。对于由于各种不可控的因素导致消息没有及时的推送下来，
+心跳机制也能确保消息的投递。
+
 *** 单聊
 *** 群聊
 ** 计划
@@ -11,7 +81,7 @@
 | 字段    | 类型  | 说明                                                 |
 |---------+-------+------------------------------------------------------|
 | version | INT8  | 协议版本号                                           |
-| command | enum  | 顶层命令类型，CONNECT，DISCONNECT，REQUEST，RESPONSE |
+| command   | enum  | 顶层命令类型，CONNECT，DISCONNECT，REQUEST，RESPONSE |
 | payload | bytes | 不同的协议表示不同的含义                             |
 
 *****  登录 CONNECT
