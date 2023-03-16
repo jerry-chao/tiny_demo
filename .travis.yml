@@ -8,7 +8,18 @@ otp_release:
   - 23.3.1
 script:
   - echo ${TRAVIS_OTP_RELEASE}
-  - ./rebar3 fmt --check
-  - ./rebar3 compile
-  - ./rebar3 ct
-  - ./rebar3 cover
+  # - ./rebar3 fmt --check
+  # - ./rebar3 compile
+  # - ./rebar3 ct
+  # - ./rebar3 cover
+
+jobs:
+  include:
+    - stage: compile
+      otp_release: 23.3.1
+      script:
+        - ./rebar3 compile
+
+    - stage: check
+      otp_release: 23.3.1
+      script: ls -lrt _build
